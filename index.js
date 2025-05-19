@@ -39,9 +39,9 @@ const exerciseSchema= new mongoose.Schema({
      type: Date,
      required: true
   }
-})
-const Exercise= mongoose.model(Exercise, exerciseSchema)
-const User= mongoose.model(User, UserSchema);
+})''
+const Exercise= mongoose.model("Exercise", exerciseSchema)
+const User= mongoose.model("User", UserSchema);
 
 
 
