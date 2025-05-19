@@ -37,7 +37,7 @@ const exerciseSchema= new mongoose.Schema({
   },
   date:{
      type: Date,
-     required: true
+     default: Date.now
   }
 })
 const Exercise= mongoose.model("Exercise", exerciseSchema)
@@ -73,42 +73,41 @@ app.get('/api/users', async(req,res)=>{
     res.status(500).json({error: 'Internal server error'})
   }
 })
-app.post('/api/users/:_id/exercises', async(req, res)=>{
-  try{
-    const {description, duration, date}= req.body
-    const {_id} = req.params
-    
-    if(!description || !duration){
-      return res.status(400).json({error:"log your exercise"})
-    }
-    const user= await User.findById(_id);
+app.post('/api/users/:_id/exercises', async (req, res) => {
+  try {
+    const { description, duration, date } = req.body;
+    const { _id } = req.params;
 
-    if(!user){
-      res.status(404).json({error:"user not found"})
-
+    if (!description || !duration) {
+      return res.status(400).json({ error: "log your exercise" });
     }
+
+    const user = await User.findById(_id);
+    if (!user) {
+      return res.status(404).json({ error: "user not found" });
+    }
+
     const exercise = new Exercise({
       userId: _id,
-      description, 
-      duration,
-      date: date ? new Date(date) : new Date() 
-    })
-    const savedExercise= await exercise.save()
+      description,
+      duration: parseInt(duration),
+      date: date ? new Date(date) : new Date()
+    });
 
-    const response= {
-      username:user.username,
+    const savedExercise = await exercise.save();
+
+    res.json({
+      _id: user._id,
+      username: user.username,
       description: savedExercise.description,
       duration: savedExercise.duration,
-      date: savedExercise.date.toDateString(),
-      _id: savedExercise.userId
-    }
-    res.json(response);
-  }catch(err){
+      date: savedExercise.date.toDateString()
+    });
+  } catch (err) {
     console.error(err);
-    res.status(500).json({error: "internal server error"})
+    res.status(500).json({ error: "internal server error" });
   }
-
-})
+});
 app.get('/api/users/:_id/logs', async(req, res)=>{
    try {
 
@@ -127,7 +126,8 @@ app.get('/api/users/:_id/logs', async(req, res)=>{
         if (from) query.date.$gte = new Date(from);
         if (to) query.date.$lte = new Date(to);
       }
-      const exercises= await Exercise.find(query).limit(limit ? parseInt(limit) : 0)
+      const exercises = await Exercise.find(query).limit(limit ? parseInt(limit) : 0)
+
       const log= exercises.map(exercise=>({
         description: exercise.description,
         duration: exercise.duration,
