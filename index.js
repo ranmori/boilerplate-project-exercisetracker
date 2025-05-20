@@ -12,7 +12,7 @@ app.use(express.static('public'));
 app.get('/', (req, res) => {
   res.sendFile(__dirname + '/views/index.html');
 });
-
+const MongoDb_url= process.env.mongoDB_url
 const UserSchema = new mongoose.Schema({
   username: { type: String, required: true }
 });
@@ -25,6 +25,14 @@ const ExerciseSchema = new mongoose.Schema({
 
 const User = mongoose.model('User', UserSchema);
 const Exercise = mongoose.model('Exercise', ExerciseSchema);
+mongoose.connect(MongoDb_url, {
+  useNewUrlParser: true,
+  useUnifiedTopology: true
+}).then(() => {
+  console.log('MongoDB connected');
+}).catch(err => {
+  console.error('MongoDB connection error:', err);
+});
 
 // POST new user
 app.post('/api/users', async (req, res) => {
