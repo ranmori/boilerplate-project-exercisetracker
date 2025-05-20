@@ -12,7 +12,7 @@ app.use(express.static('public'));
 app.get('/', (req, res) => {
   res.sendFile(__dirname + '/views/index.html');
 });
-const MongoDb_url= process.env.mongoDB_url
+const MongoDb_url= process.env.MONGODB_URL
 const UserSchema = new mongoose.Schema({
   username: { type: String, required: true }
 });
