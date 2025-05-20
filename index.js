@@ -9,10 +9,11 @@ app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
 app.use(express.static('public'));
 
+
 app.get('/', (req, res) => {
   res.sendFile(__dirname + '/views/index.html');
 });
-const MongoDb_url= process.env.MONGODB_URL
+
 const UserSchema = new mongoose.Schema({
   username: { type: String, required: true }
 });
@@ -25,14 +26,7 @@ const ExerciseSchema = new mongoose.Schema({
 
 const User = mongoose.model('User', UserSchema);
 const Exercise = mongoose.model('Exercise', ExerciseSchema);
-mongoose.connect(MongoDb_url, {
-  useNewUrlParser: true,
-  useUnifiedTopology: true
-}).then(() => {
-  console.log('MongoDB connected');
-}).catch(err => {
-  console.error('MongoDB connection error:', err);
-});
+
 
 // POST new user
 app.post('/api/users', async (req, res) => {
@@ -161,6 +155,18 @@ app.get('/api/users/:_id/logs', async (req, res) => {
   }
 });
 
-const listener = app.listen(process.env.PORT || 3000, () => {
-  console.log('Server is listening on port ' + listener.address().port);
+const MongoDb_url = process.env.MONGODB_URL;
+mongoose.connect(MongoDb_url, { 
+  useNewUrlParser: true, 
+  useUnifiedTopology: true 
+})
+.then(() => {
+  console.log('MongoDB connected');
+  // Start server only after successful DB connection
+  const listener = app.listen(process.env.PORT || 3000, () => {
+    console.log('Server listening on port ' + listener.address().port);
+  });
+})
+.catch(err => {
+  console.error('MongoDB connection failed:', err);
 });
