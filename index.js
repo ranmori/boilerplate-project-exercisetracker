@@ -96,25 +96,24 @@ app.post('/api/users/:_id/exercises', async (req, res) => {
   }
 });
 
-// GET user's exercise log
 app.get('/api/users/:_id/logs', async (req, res) => {
   try {
     const { _id } = req.params;
     let { from, to, limit } = req.query;
-  
+
     // Validate user exists
     const user = await User.findById(_id);
     if (!user) {
       return res.status(404).json({ error: 'User not found' });
     }
-  
+
     // Build the query filter
     const filter = { userId: _id };
-  
+
     // Handle date range filtering
     if (from || to) {
       filter.date = {};
-  
+      
       if (from) {
         const fromDate = new Date(from);
         if (isNaN(fromDate.getTime())) {
@@ -122,55 +121,54 @@ app.get('/api/users/:_id/logs', async (req, res) => {
         }
         filter.date.$gte = fromDate;
       }
-  
+      
       if (to) {
         const toDate = new Date(to);
         if (isNaN(toDate.getTime())) {
           return res.status(400).json({ error: 'Invalid "to" date format. Use yyyy-mm-dd' });
         }
-        // Include the entire day by setting to end of day
+        // Include the entire day
         toDate.setHours(23, 59, 59, 999);
         filter.date.$lte = toDate;
       }
     }
-  
-    // Get total count before applying limit
+
+    // Get total count (unfiltered by limit)
     const count = await Exercise.countDocuments(filter);
-  
-    // Build the query and apply a limit if provided
+
+    // Build query
     let query = Exercise.find(filter)
       .select('description duration date -_id')
-      .sort({ date: 1 });
+      .sort({ date: 'asc' });
+
+    // Apply limit if valid
     if (limit) {
-      const limitNum = parseInt(limit);
-      if (!isNaN(limitNum) && limitNum > 0) {
-        query = query.limit(limitNum);
+      limit = parseInt(limit);
+      if (!isNaN(limit)) {
+        query = query.limit(limit);
       }
     }
-  
+
     const exercises = await query.exec();
-    const log = exercises.map(exercise => ({
-      description: exercise.description,
-      duration: exercise.duration,
-      date: exercise.date.toDateString()
-    }));
-  
-    const responseObj = {
+
+    // Format response
+    const response = {
       _id: user._id,
       username: user.username,
-      count: count,
-      log: log
+      count: exercises.length, // Return actual count of returned exercises
+      log: exercises.map(ex => ({
+        description: ex.description,
+        duration: ex.duration,
+        date: ex.date.toDateString()
+      }))
     };
-  
-    // Include 'from' and 'to' properties if provided
-    if (from) {
-      responseObj.from = new Date(from).toDateString();
-    }
-    if (to) {
-      responseObj.to = new Date(to).toDateString();
-    }
-  
-    res.json(responseObj);
+
+    // Add from/to dates if they exist
+    if (from) response.from = new Date(from).toDateString();
+    if (to) response.to = new Date(to).toDateString();
+
+    res.json(response);
+
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Server error' });
