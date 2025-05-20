@@ -103,32 +103,47 @@ app.post('/api/users/:_id/exercises', async (req, res) => {
 app.get('/api/users/:_id/logs', async (req, res) => {
   try {
     const { _id } = req.params;
-    const { from, to, limit } = req.query;
+    let { from, to, limit } = req.query;
 
+    // Validate user exists
     const user = await User.findById(_id);
-    if (!user) return res.status(404).json({ error: 'User not found' });
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
 
+    // Build the query filter
     const filter = { userId: _id };
-    const dateFilter = {};
 
-    if (from) {
-      const fromDate = new Date(from);
-      if (isNaN(fromDate.getTime())) {
-        return res.status(400).json({ error: 'Invalid from date' });
+    // Handle date range filtering
+    if (from || to) {
+      filter.date = {};
+      
+      if (from) {
+        const fromDate = new Date(from);
+        if (isNaN(fromDate.getTime())) {
+          return res.status(400).json({ error: 'Invalid "from" date format. Use yyyy-mm-dd' });
+        }
+        filter.date.$gte = fromDate;
       }
-      dateFilter.$gte = fromDate;
-    }
-    if (to) {
-      const toDate = new Date(to);
-      if (isNaN(toDate.getTime())) {
-        return res.status(400).json({ error: 'Invalid to date' });
+      
+      if (to) {
+        const toDate = new Date(to);
+        if (isNaN(toDate.getTime())) {
+          return res.status(400).json({ error: 'Invalid "to" date format. Use yyyy-mm-dd' });
+        }
+        // Include the entire day by setting to end of day
+        toDate.setHours(23, 59, 59, 999);
+        filter.date.$lte = toDate;
       }
-      dateFilter.$lte = toDate;
     }
-    if (from || to) filter.date = dateFilter;
 
+    // Get total count before applying limit
     const count = await Exercise.countDocuments(filter);
-    let query = Exercise.find(filter).select('description duration date -_id');
+
+    // Apply limit if provided
+    let query = Exercise.find(filter)
+      .select('description duration date -_id')
+      .sort({ date: 1 }); // Sort by date ascending
 
     if (limit) {
       const limitNum = parseInt(limit);
@@ -138,10 +153,12 @@ app.get('/api/users/:_id/logs', async (req, res) => {
     }
 
     const exercises = await query.exec();
-    const log = exercises.map(ex => ({
-      description: ex.description,
-      duration: ex.duration,
-      date: ex.date.toDateString()
+
+    // Format the response
+    const log = exercises.map(exercise => ({
+      description: exercise.description,
+      duration: exercise.duration,
+      date: exercise.date.toDateString() // Format as "Mon Jan 01 2024"
     }));
 
     res.json({
@@ -150,7 +167,9 @@ app.get('/api/users/:_id/logs', async (req, res) => {
       count: count,
       log: log
     });
+
   } catch (err) {
+    console.error(err);
     res.status(500).json({ error: 'Server error' });
   }
 });
