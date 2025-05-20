@@ -67,7 +67,7 @@ app.post('/api/users/:_id/exercises', async (req, res) => {
 
     if (!description || !duration) {
       return res.status(400).json({ error: 'Required fields missing' });
-    }
+    }  
 
     const user = await User.findById(_id);
     if (!user) return res.status(404).json({ error: 'User not found' });
