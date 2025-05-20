@@ -54,47 +54,82 @@ app.get('/api/users', async (req, res) => {
 });
 
 // POST new exercise
-app.post('/api/users/:_id/exercises', async (req, res) => {
+app.get('/api/users/:_id/logs', async (req, res) => {
   try {
     const { _id } = req.params;
-    const { description, duration, date } = req.body;
+    let { from, to, limit } = req.query;
 
-    if (!description || !duration) {
-      return res.status(400).json({ error: 'Required fields missing' });
-    }  
-
+    // Validate user exists
     const user = await User.findById(_id);
-    if (!user) return res.status(404).json({ error: 'User not found' });
-
-    const durationNum = parseInt(duration);
-    if (isNaN(durationNum)) {
-      return res.status(400).json({ error: 'Duration must be a number' });
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
     }
 
-    let exerciseDate = new Date();
-    if (date) {
-      exerciseDate = new Date(date);
-      if (isNaN(exerciseDate.getTime())) {
-        return res.status(400).json({ error: 'Invalid date format' });
+    // Build the query filter
+    const filter = { userId: _id };
+
+    // Handle date range filtering
+    if (from || to) {
+      filter.date = {};
+      
+      if (from) {
+        const fromDate = new Date(from);
+        if (isNaN(fromDate.getTime())) {
+          return res.status(400).json({ error: 'Invalid "from" date format. Use yyyy-mm-dd' });
+        }
+        filter.date.$gte = fromDate;
+      }
+      
+      if (to) {
+        const toDate = new Date(to);
+        if (isNaN(toDate.getTime())) {
+          return res.status(400).json({ error: 'Invalid "to" date format. Use yyyy-mm-dd' });
+        }
+        // Include the entire day by setting to end of day
+        toDate.setHours(23, 59, 59, 999);
+        filter.date.$lte = toDate;
       }
     }
 
-    const exercise = new Exercise({
-      userId: _id,
-      description,
-      duration: durationNum,
-      date: exerciseDate
-    });
-    await exercise.save();
+    // Get total count before applying limit
+    const count = await Exercise.countDocuments(filter);
 
-    res.json({
-      _id: user._id,
-      username: user.username,
+    // Build the query and apply a limit if provided
+    let query = Exercise.find(filter)
+      .select('description duration date -_id')
+      .sort({ date: 1 });
+    if (limit) {
+      const limitNum = parseInt(limit);
+      if (!isNaN(limitNum) && limitNum > 0) {
+        query = query.limit(limitNum);
+      }
+    }
+
+    const exercises = await query.exec();
+    const log = exercises.map(exercise => ({
       description: exercise.description,
       duration: exercise.duration,
       date: exercise.date.toDateString()
-    });
+    }));
+
+    const responseObj = {
+      _id: user._id,
+      username: user.username,
+      count: count,
+      log: log
+    };
+
+    // Include 'from' and 'to' properties if provided
+    if (from) {
+      responseObj.from = new Date(from).toDateString();
+    }
+    if (to) {
+      responseObj.to = new Date(to).toDateString();
+    }
+
+    res.json(responseObj);
   } catch (err) {
+    console.error(err);
     res.status(500).json({ error: 'Server error' });
   }
 });
