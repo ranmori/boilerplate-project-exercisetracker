@@ -101,82 +101,60 @@ app.get('/api/users/:_id/logs', async (req, res) => {
   try {
     const { _id } = req.params;
     let { from, to, limit } = req.query;
-  
-    // Validate user exists
+
     const user = await User.findById(_id);
-    if (!user) {
-      return res.status(404).json({ error: 'User not found' });
-    }
-  
-    // Build the query filter
+    if (!user) return res.status(404).json({ error: 'User not found' });
+
     const filter = { userId: _id };
-  
-    // Handle date range filtering
+    
     if (from || to) {
       filter.date = {};
-  
       if (from) {
         const fromDate = new Date(from);
-        if (isNaN(fromDate.getTime())) {
-          return res
-            .status(400)
-            .json({ error: 'Invalid "from" date format. Use yyyy-mm-dd' });
-        }
+        if (isNaN(fromDate)) return res.status(400).json({ error: 'Invalid from date' });
         filter.date.$gte = fromDate;
       }
-  
       if (to) {
         const toDate = new Date(to);
-        if (isNaN(toDate.getTime())) {
-          return res
-            .status(400)
-            .json({ error: 'Invalid "to" date format. Use yyyy-mm-dd' });
-        }
-        // Include the entire day by setting to end of day
+        if (isNaN(toDate)) return res.status(400).json({ error: 'Invalid to date' });
         toDate.setHours(23, 59, 59, 999);
         filter.date.$lte = toDate;
       }
     }
-  
-    // Build the query and apply a limit if provided
-    let query = Exercise.find(filter)
-      .select('description duration date -_id')
-      .sort({ date: 1 });
+
+    let query = Exercise.find(filter).select('description duration date -_id').sort({ date: 1 });
+
     if (limit) {
       const limitNum = parseInt(limit);
       if (!isNaN(limitNum) && limitNum > 0) {
         query = query.limit(limitNum);
       }
     }
-  
+
     const exercises = await query.exec();
-    const log = exercises.map(exercise => ({
-      description: exercise.description,
-      duration: exercise.duration,
-      date: exercise.date.toDateString()
+    const log = exercises.map(ex => ({
+      description: ex.description,
+      duration: ex.duration,
+      date: ex.date ? ex.date.toDateString() : ''
     }));
-  
-    const responseObj = {
+
+    const response = {
       _id: user._id,
       username: user.username,
-      count: log.length, // use the length of the log array
-      log: log
+      count: log.length,
+      log
     };
-  
-    // Include 'from' and 'to' properties if provided
-    if (from) {
-      responseObj.from = new Date(from).toDateString();
-    }
-    if (to) {
-      responseObj.to = new Date(to).toDateString();
-    }
-  
-    res.json(responseObj);
+
+    if (from) response.from = new Date(from).toDateString();
+    if (to) response.to = new Date(to).toDateString();
+
+    res.json(response);
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Server error' });
   }
 });
+
 
 const MONGODB_URL = process.env.MONGODB_URL;
 mongoose.connect(MONGODB_URL, { 
