@@ -155,8 +155,8 @@ app.get('/api/users/:_id/logs', async (req, res) => {
   }
 });
 
-const MongoDb_url = process.env.MONGODB_URL;
-mongoose.connect(MongoDb_url, { 
+const MONGODB_URL = process.env.MONGODB_URL;
+mongoose.connect(MONGODB_URL, { 
   useNewUrlParser: true, 
   useUnifiedTopology: true 
 })
