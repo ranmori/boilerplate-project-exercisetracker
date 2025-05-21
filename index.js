@@ -143,9 +143,9 @@ app.get('/api/users/:_id/logs', async (req, res) => {
   }
 });
 
-const MONGODB_URI = process.env.MONGODB_URI;
+const MONGODB_URL = process.env.MONGODB_URL;
 
-mongoose.connect(MONGODB_URI)
+mongoose.connect(MONGODB_URL)
   .then(() => {
     console.log('Connected to MongoDB');
     const listener = app.listen(process.env.PORT || 3000, () => {
