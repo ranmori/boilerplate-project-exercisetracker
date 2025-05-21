@@ -4,22 +4,22 @@ const cors = require('cors');
 const mongoose = require('mongoose');
 require('dotenv').config();
 
+// Middleware
 app.use(cors());
-app.use(express.urlencoded({ extended: true }));
-app.use(express.json());
 app.use(express.static('public'));
+app.use(express.urlencoded({ extended: false }));
+app.use(express.json());
 
+// Root route
 app.get('/', (req, res) => {
   res.sendFile(__dirname + '/views/index.html');
 });
 
-// Define schemas and models
+// Schema definitions
 const Schema = mongoose.Schema;
-
 const UserSchema = new Schema({
   username: String
 });
-
 const ExerciseSchema = new Schema({
   userId: String,
   description: String,
@@ -27,123 +27,155 @@ const ExerciseSchema = new Schema({
   date: Date
 });
 
+// Models
 const User = mongoose.model('User', UserSchema);
 const Exercise = mongoose.model('Exercise', ExerciseSchema);
 
-// Create a new user
+// POST /api/users - Create a new user
 app.post('/api/users', async (req, res) => {
-  const newUser = new User({ username: req.body.username });
   try {
-    const savedUser = await newUser.save();
-    res.json({
+    const user = new User({ username: req.body.username });
+    const savedUser = await user.save();
+    return res.json({
       username: savedUser.username,
       _id: savedUser._id
     });
   } catch (err) {
-    console.error(err);
-    res.status(500).send('Server error');
+    console.log(err);
+    return res.status(500).json({ error: 'Error creating user' });
   }
 });
 
-// Get all users
+// GET /api/users - Get all users
 app.get('/api/users', async (req, res) => {
   try {
     const users = await User.find({});
-    res.json(users);
+    return res.json(users);
   } catch (err) {
-    console.error(err);
-    res.status(500).send('Server error');
+    console.log(err);
+    return res.status(500).json({ error: 'Error fetching users' });
   }
 });
 
-// Add an exercise to a user
+// POST /api/users/:_id/exercises - Add exercise for a user
 app.post('/api/users/:_id/exercises', async (req, res) => {
-  const userId = req.params._id;
-  const { description, duration, date } = req.body;
-  
   try {
+    const userId = req.params._id;
+    const { description, duration, date } = req.body;
+    
+    // Find the user first
     const user = await User.findById(userId);
     if (!user) {
-      return res.status(404).send('User not found');
+      return res.status(404).json({ error: 'User not found' });
     }
     
-    // Create exercise
-    const exercise = new Exercise({
+    // Create a new exercise
+    const exerciseObj = {
       userId: userId,
       description: description,
-      duration: parseInt(duration),
-      date: date ? new Date(date) : new Date()
-    });
+      duration: Number(duration)
+    };
     
+    // Handle date (use today if not provided or invalid)
+    if (date && date !== '') {
+      const dateObj = new Date(date);
+      if (!isNaN(dateObj.getTime())) {
+        exerciseObj.date = dateObj;
+      } else {
+        exerciseObj.date = new Date();
+      }
+    } else {
+      exerciseObj.date = new Date();
+    }
+    
+    const exercise = new Exercise(exerciseObj);
     await exercise.save();
     
-    // Return the expected format
-    res.json({
-      _id: userId,
+    // Return formatted response
+    return res.json({
+      _id: user._id,
       username: user.username,
-      date: exercise.date.toDateString(),
+      description: exercise.description,
       duration: exercise.duration,
-      description: exercise.description
+      date: exercise.date.toDateString()
     });
   } catch (err) {
-    console.error(err);
-    res.status(500).send('Server error');
+    console.log(err);
+    return res.status(500).json({ error: 'Error adding exercise' });
   }
 });
 
-// Get a user's exercise log
+// GET /api/users/:_id/logs - Get exercise log for user
 app.get('/api/users/:_id/logs', async (req, res) => {
-  const userId = req.params._id;
-  const { from, to, limit } = req.query;
-  
   try {
+    const userId = req.params._id;
+    let { from, to, limit } = req.query;
+    
+    // Find the user
     const user = await User.findById(userId);
     if (!user) {
-      return res.status(404).send('User not found');
+      return res.status(404).json({ error: 'User not found' });
     }
     
-    // Build query
-    let query = { userId: userId };
+    // Build the query
+    const findConditions = { userId: userId };
     
+    // Add date filters if provided
     if (from || to) {
-      query.date = {};
+      findConditions.date = {};
+      
       if (from) {
-        query.date.$gte = new Date(from);
+        const fromDate = new Date(from);
+        if (!isNaN(fromDate.getTime())) {
+          findConditions.date.$gte = fromDate;
+        }
       }
+      
       if (to) {
-        query.date.$lte = new Date(to);
+        const toDate = new Date(to);
+        if (!isNaN(toDate.getTime())) {
+          findConditions.date.$lte = toDate;
+        }
       }
     }
     
-    // Find exercises
-    let exercises = Exercise.find(query);
+    // Execute query
+    let query = Exercise.find(findConditions);
     
+    // Apply limit if valid
     if (limit) {
-      exercises = exercises.limit(+limit);
+      const limitVal = parseInt(limit);
+      if (!isNaN(limitVal)) {
+        query = query.limit(limitVal);
+      }
     }
     
-    const foundExercises = await exercises.exec();
+    const exercises = await query.exec();
     
-    // Format response
-    const log = foundExercises.map(e => ({
-      description: e.description,
-      duration: e.duration,
-      date: e.date.toDateString()
+    // Format log entries
+    const log = exercises.map(ex => ({
+      description: ex.description,
+      duration: ex.duration,
+      date: ex.date.toDateString()
     }));
     
-    res.json({
-      _id: userId,
+    // Build response object
+    const response = {
+      _id: user._id,
       username: user.username,
       count: log.length,
       log: log
-    });
+    };
+    
+    return res.json(response);
   } catch (err) {
-    console.error(err);
-    res.status(500).send('Server error');
+    console.log(err);
+    return res.status(500).json({ error: 'Error fetching logs' });
   }
 });
 
-const MONGODB_URL = process.env.MONGODB_URL;
+// Database connection and server start
+const MONGODB_URL = process.env.MONGODB_URL || 'mongodb://localhost:27017/exercise-tracker';
 
 mongoose.connect(MONGODB_URL)
   .then(() => {
@@ -153,5 +185,5 @@ mongoose.connect(MONGODB_URL)
     });
   })
   .catch(err => {
-    console.error('Error connecting to MongoDB:', err);
+    console.error('MongoDB connection error:', err);
   });
