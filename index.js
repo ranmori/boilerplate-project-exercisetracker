@@ -108,71 +108,58 @@ app.post('/api/users/:_id/exercises', async (req, res) => {
 // GET /api/users/:_id/logs - Get exercise log for user
 app.get('/api/users/:_id/logs', async (req, res) => {
   try {
+    const { from, to, limit } = req.query;
     const userId = req.params._id;
-    let { from, to, limit } = req.query;
-    
-    // Find the user
+
     const user = await User.findById(userId);
     if (!user) {
       return res.status(404).json({ error: 'User not found' });
     }
-    
-    // Build the query
-    const findConditions = { userId: userId };
-    
-    // Add date filters if provided
+
+    const filter = { userId };
+
+    // Add date filters if valid
     if (from || to) {
-      findConditions.date = {};
-      
-      if (from) {
-        const fromDate = new Date(from);
-        if (!isNaN(fromDate.getTime())) {
-          findConditions.date.$gte = fromDate;
-        }
+      filter.date = {};
+      const fromDate = new Date(from);
+      const toDate = new Date(to);
+
+      if (from && !isNaN(fromDate.getTime())) {
+        filter.date.$gte = fromDate;
       }
-      
-      if (to) {
-        const toDate = new Date(to);
-        if (!isNaN(toDate.getTime())) {
-          findConditions.date.$lte = toDate;
-        }
+
+      if (to && !isNaN(toDate.getTime())) {
+        filter.date.$lte = toDate;
       }
     }
-    
-    // Execute query
-    let query = Exercise.find(findConditions);
-    
+
+    let query = Exercise.find(filter);
+
     // Apply limit if valid
-    if (limit) {
-      const limitVal = parseInt(limit);
-      if (!isNaN(limitVal)) {
-        query = query.limit(limitVal);
-      }
+    if (limit && !isNaN(parseInt(limit))) {
+      query = query.limit(parseInt(limit));
     }
-    
+
     const exercises = await query.exec();
-    
-    // Format log entries
+
     const log = exercises.map(ex => ({
       description: ex.description,
       duration: ex.duration,
       date: ex.date.toDateString()
     }));
-    
-    // Build response object
-    const response = {
+
+    res.json({
       _id: user._id,
       username: user.username,
       count: log.length,
-      log: log
-    };
-    
-    return res.json(response);
+      log
+    });
   } catch (err) {
-    console.log(err);
-    return res.status(500).json({ error: 'Error fetching logs' });
+    console.error(err);
+    res.status(500).json({ error: 'Server error' });
   }
 });
+
 
 // Database connection and server start
 const MONGODB_URL = process.env.MONGODB_URL || 'mongodb://localhost:27017/exercise-tracker';
