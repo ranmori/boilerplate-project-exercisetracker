@@ -143,7 +143,7 @@ app.get('/api/users/:_id/logs', async (req, res) => {
   }
 });
 
-const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/exercise-tracker';
+const MONGODB_URI = process.env.MONGODB_URI;
 
 mongoose.connect(MONGODB_URI)
   .then(() => {
